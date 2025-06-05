@@ -469,7 +469,7 @@ Para nuevas funcionalidades, abre un issue con la etiqueta `enhancement`.
 
 **⭐ ¡Si este proyecto te fue útil, no olvides darle una estrella! ⭐**
 
-**🛒 MLSENSE - Análisis Inteligente de Productos con IA 🤖**
+**🛒 MLSENSE - Análisis Inteligente de Productos con Sistema Experto**
 
 [⬆ Volver al inicio](#-mlsense---análisis-inteligente-de-productos-en-mercadolibre)
 
