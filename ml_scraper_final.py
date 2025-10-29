@@ -23,6 +23,103 @@ st.set_page_config(
 )
 
 # =====================================
+# API DE MERCADOLIBRE (ALTERNATIVA)
+# =====================================
+
+class MercadoLibreAPI:
+    """Clase para acceder a la API oficial de MercadoLibre"""
+
+    def __init__(self):
+        self.base_url = "https://api.mercadolibre.com"
+        self.site_id = "MLA"  # Argentina
+
+    def search_products(self, query, limit=50):
+        """
+        Busca productos usando la API oficial
+
+        Args:
+            query (str): Término de búsqueda
+            limit (int): Número máximo de resultados
+
+        Returns:
+            list: Lista de productos encontrados
+        """
+        try:
+            encoded_query = urllib.parse.quote(query)
+            url = f"{self.base_url}/sites/{self.site_id}/search?q={encoded_query}&limit={limit}"
+
+            req = urllib.request.Request(url)
+            req.add_header('Accept', 'application/json')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+                products = []
+                for item in data.get('results', []):
+                    product = {
+                        'nombre': item.get('title', 'Sin título'),
+                        'precio': str(item.get('price', 0)),
+                        'estrellas': '0',
+                        'calificaciones': '0',
+                        'descuento': 'Sin descuento',
+                        'envio': 'Gratis' if item.get('shipping', {}).get('free_shipping') else 'Con costo',
+                        'url': item.get('permalink', ''),
+                        'id': item.get('id', '')
+                    }
+
+                    # Intentar obtener reviews
+                    if item.get('reviews'):
+                        reviews_data = item['reviews']
+                        product['estrellas'] = str(reviews_data.get('rating_average', 0))
+                        product['calificaciones'] = str(reviews_data.get('total', 0))
+
+                    products.append(product)
+
+                return products
+
+        except urllib.error.HTTPError as e:
+            st.error(f"❌ Error HTTP {e.code}: {e.reason}")
+            return []
+        except Exception as e:
+            st.error(f"❌ Error al acceder a la API: {type(e).__name__}: {e}")
+            return []
+
+    def get_product_reviews(self, product_id, max_reviews=5):
+        """
+        Obtiene reviews de un producto específico
+
+        Args:
+            product_id (str): ID del producto
+            max_reviews (int): Número máximo de reviews
+
+        Returns:
+            list: Lista de comentarios
+        """
+        try:
+            url = f"{self.base_url}/reviews/item/{product_id}"
+
+            req = urllib.request.Request(url)
+            req.add_header('Accept', 'application/json')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+                reviews = []
+                for review in data.get('reviews', [])[:max_reviews]:
+                    reviews.append({
+                        'comentario': review.get('content', ''),
+                        'puntuacion': str(review.get('rate', 3))
+                    })
+
+                return reviews
+
+        except urllib.error.HTTPError as e:
+            # Muchos productos no tienen reviews, esto es normal
+            return []
+        except Exception as e:
+            return []
+
+# =====================================
 # SISTEMA EXPERTO SIMPLIFICADO
 # =====================================
 
@@ -857,15 +954,39 @@ def main():
     
     # Sidebar para configuración
     st.sidebar.header("⚙️ Configuración")
-    
-    # Parámetros de scraping
+
+    # NUEVO: Selector de método
+    st.sidebar.markdown("### 🔌 Método de Extracción")
+    method = st.sidebar.radio(
+        "Selecciona cómo obtener los datos:",
+        ("✅ API Oficial (Recomendado)", "🕷️ Web Scraping (Experimental)"),
+        help="API Oficial: Más confiable y rápido. Scraping: Puede fallar en Streamlit Cloud."
+    )
+    use_api = "API" in method
+
+    if use_api:
+        st.sidebar.success("✅ Usando API oficial de MercadoLibre - Sin bloqueos")
+    else:
+        st.sidebar.warning("⚠️ Scraping puede fallar en Streamlit Cloud debido a bloqueos de ML")
+
+    st.sidebar.markdown("---")
+
+    # Parámetros de búsqueda
     search_term = st.sidebar.text_input("Término de búsqueda", value="vinos", help="Ejemplo: vinos, autos, cascos moto")
-    max_pages = st.sidebar.slider("Número de páginas", 1, 5, 1)
+
+    if not use_api:
+        max_pages = st.sidebar.slider("Número de páginas", 1, 5, 1)
+    else:
+        max_pages = 1  # La API maneja límites diferentes
+
     get_comments = st.sidebar.checkbox("Obtener comentarios", value=True)
 
-    # Modo debugging
-    st.sidebar.markdown("---")
-    debug_mode = st.sidebar.checkbox("🐛 Modo Debug", value=False, help="Muestra información detallada del proceso de scraping para diagnosticar problemas")
+    # Modo debugging (solo para scraping)
+    if not use_api:
+        st.sidebar.markdown("---")
+        debug_mode = st.sidebar.checkbox("🐛 Modo Debug", value=False, help="Muestra información detallada del proceso de scraping para diagnosticar problemas")
+    else:
+        debug_mode = False
     
     if get_comments:
         # Calcular el máximo teórico de productos según las páginas seleccionadas
@@ -889,23 +1010,58 @@ def main():
     else:
         max_products_comments = 0
     
-    # Botón de scraping
-    if st.sidebar.button("🚀 Iniciar Scraping", type="primary"):
+    # Botón de inicio
+    button_label = "🚀 Iniciar Búsqueda" if use_api else "🚀 Iniciar Scraping"
+    if st.sidebar.button(button_label, type="primary"):
         if search_term:
             st.header(f"🔍 Resultados para: {search_term}")
-            
-            # Inicializar scraper
-            scraper = MercadoLibreScraper()
-            
-            # Realizar scraping
-            with st.spinner("Realizando scraping..."):
-                productos = scraper.scrape_products(
-                    search_term=search_term,
-                    max_pages=max_pages,
-                    get_comments=get_comments,
-                    max_products_comments=max_products_comments,
-                    debug=debug_mode
-                )
+
+            productos = []
+
+            if use_api:
+                # Usar API oficial
+                st.info("🔌 Conectando con la API oficial de MercadoLibre...")
+                api = MercadoLibreAPI()
+
+                with st.spinner("Obteniendo productos desde la API..."):
+                    limit = min(max_products_comments if get_comments else 50, 50)
+                    productos = api.search_products(search_term, limit=limit)
+
+                    if productos and get_comments:
+                        st.info(f"📝 Obteniendo comentarios de {len(productos)} productos...")
+                        progress_bar = st.progress(0)
+
+                        for idx, producto in enumerate(productos):
+                            if 'id' in producto and producto['id']:
+                                reviews = api.get_product_reviews(producto['id'], max_reviews=5)
+
+                                # Agregar comentarios al producto
+                                for i, review in enumerate(reviews):
+                                    producto[f'comentario_{i+1}'] = review['comentario']
+                                    producto[f'puntuacion_comentario_{i+1}'] = review['puntuacion']
+
+                                # Rellenar comentarios faltantes
+                                for i in range(len(reviews), 5):
+                                    producto[f'comentario_{i+1}'] = ""
+                                    producto[f'puntuacion_comentario_{i+1}'] = ""
+
+                            progress_bar.progress((idx + 1) / len(productos))
+                            time.sleep(0.1)  # Pequeña pausa para no saturar la API
+
+                        progress_bar.empty()
+
+            else:
+                # Usar scraping tradicional
+                scraper = MercadoLibreScraper()
+
+                with st.spinner("Realizando scraping..."):
+                    productos = scraper.scrape_products(
+                        search_term=search_term,
+                        max_pages=max_pages,
+                        get_comments=get_comments,
+                        max_products_comments=max_products_comments,
+                        debug=debug_mode
+                    )
             
             if productos:
                 st.success(f"✅ Se encontraron {len(productos)} productos")
