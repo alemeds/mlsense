@@ -117,7 +117,7 @@ cd mlsense
 pip install -r requirements.txt
 
 # Ejecutar la aplicación
-streamlit run ml_scraper_definitivo.py
+streamlit run ml_scraper_final.py
 ```
 
 ### Dependencias
@@ -231,7 +231,7 @@ resultado = max(1.0, min(5.0, sentimiento_final))
 
 ```
 mlsense/
-├── ml_scraper_definitivo.py      # Aplicación principal
+├── ml_scraper_final.py          # Aplicación principal
 ├── requirements.txt              # Dependencias
 ├── README.md                    # Documentación
 ├── docs/                        # Documentación adicional
