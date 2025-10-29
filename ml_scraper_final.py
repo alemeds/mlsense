@@ -120,6 +120,145 @@ class MercadoLibreAPI:
             return []
 
 # =====================================
+# DATOS DE DEMOSTRACIÓN
+# =====================================
+
+def generar_datos_demo(num_productos=20):
+    """Genera datos de demostración realistas de vinos"""
+
+    productos_demo = [
+        {
+            'nombre': 'Vino Tinto Malbec Reserva Premium 750ml',
+            'precio': '8500',
+            'estrellas': '4.7',
+            'calificaciones': '342',
+            'envio': 'Gratis',
+            'url': 'https://mercadolibre.com.ar/producto-demo',
+            'comentario_1': 'Excelente vino, muy buen aroma frutal y equilibrado. La relación precio-calidad es increíble.',
+            'puntuacion_comentario_1': '5',
+            'comentario_2': 'Muy rico, suave y con buen cuerpo. Llegó rápido y bien embalado.',
+            'puntuacion_comentario_2': '5',
+            'comentario_3': 'Buen vino por el precio. El aroma es agradable pero podría ser más intenso.',
+            'puntuacion_comentario_3': '4',
+            'comentario_4': 'Perfecto para acompañar carnes. Muy recomendable.',
+            'puntuacion_comentario_4': '5',
+            'comentario_5': 'Excelente producto, volveré a comprarlo.',
+            'puntuacion_comentario_5': '5'
+        },
+        {
+            'nombre': 'Vino Cabernet Sauvignon Gran Reserva 750ml',
+            'precio': '12000',
+            'estrellas': '4.9',
+            'calificaciones': '567',
+            'envio': 'Gratis',
+            'url': 'https://mercadolibre.com.ar/producto-demo',
+            'comentario_1': 'Impresionante calidad. El aroma es espectacular, muy frutado y con notas especiadas.',
+            'puntuacion_comentario_1': '5',
+            'comentario_2': 'Premium en todo sentido. El precio lo vale completamente.',
+            'puntuacion_comentario_2': '5',
+            'comentario_3': 'Uno de los mejores malbec que he probado. Recomendable 100%.',
+            'puntuacion_comentario_3': '5',
+            'comentario_4': 'Excelente bouquet, muy aromático. Llegó en perfecto estado.',
+            'puntuacion_comentario_4': '5',
+            'comentario_5': 'Maravilloso vino, ideal para ocasiones especiales.',
+            'puntuacion_comentario_5': '5'
+        },
+        {
+            'nombre': 'Vino Tinto Económico 1 Litro',
+            'precio': '1200',
+            'estrellas': '2.3',
+            'calificaciones': '89',
+            'envio': 'Con costo',
+            'url': 'https://mercadolibre.com.ar/producto-demo',
+            'comentario_1': 'Muy malo, sabor desagradable. No lo recomiendo.',
+            'puntuacion_comentario_1': '1',
+            'comentario_2': 'Demasiado ácido y aspero. Decepcionante.',
+            'puntuacion_comentario_2': '2',
+            'comentario_3': 'Por el precio no se puede esperar mucho, pero está muy flojo.',
+            'puntuacion_comentario_3': '2',
+            'comentario_4': 'Horrible, sabe a vinagre. Tirar el dinero.',
+            'puntuacion_comentario_4': '1',
+            'comentario_5': 'No lo compraría de nuevo. Muy ordinario.',
+            'puntuacion_comentario_5': '2'
+        },
+        {
+            'nombre': 'Vino Merlot Orgánico Premium 750ml',
+            'precio': '9800',
+            'estrellas': '4.5',
+            'calificaciones': '234',
+            'envio': 'Gratis',
+            'url': 'https://mercadolibre.com.ar/producto-demo',
+            'comentario_1': 'Buen vino orgánico. El aroma es delicioso, muy floral y frutado.',
+            'puntuacion_comentario_1': '4',
+            'comentario_2': 'Excelente relación calidad-precio. El envío fue rapidísimo.',
+            'puntuacion_comentario_2': '5',
+            'comentario_3': 'Rico y suave. Muy recomendable para quienes buscan vinos orgánicos.',
+            'puntuacion_comentario_3': '4',
+            'comentario_4': 'Buen bouquet, equilibrado. La entrega fue perfecta.',
+            'puntuacion_comentario_4': '5',
+            'comentario_5': 'Satisfecho con la compra. Volveré a pedir.',
+            'puntuacion_comentario_5': '4'
+        },
+        {
+            'nombre': 'Vino Blanco Chardonnay 750ml',
+            'precio': '6500',
+            'estrellas': '4.2',
+            'calificaciones': '178',
+            'envio': 'Gratis',
+            'url': 'https://mercadolibre.com.ar/producto-demo',
+            'comentario_1': 'Fresco y aromático. Perfecto para el verano.',
+            'puntuacion_comentario_1': '4',
+            'comentario_2': 'Buen vino blanco, muy agradable al paladar.',
+            'puntuacion_comentario_2': '4',
+            'comentario_3': 'El aroma es intenso y frutal. Me gustó mucho.',
+            'puntuacion_comentario_3': '5',
+            'comentario_4': 'Relación precio-calidad muy buena. Llegó en tiempo.',
+            'puntuacion_comentario_4': '4',
+            'comentario_5': 'Rico y refrescante. Recomendable.',
+            'puntuacion_comentario_5': '4'
+        },
+        {
+            'nombre': 'Vino Tinto de Mesa 2 Litros',
+            'precio': '2800',
+            'estrellas': '3.1',
+            'calificaciones': '156',
+            'envio': 'Con costo',
+            'url': 'https://mercadolibre.com.ar/producto-demo',
+            'comentario_1': 'Para el precio está bien, pero no esperes gran calidad.',
+            'puntuacion_comentario_1': '3',
+            'comentario_2': 'Aguado y sin mucho sabor. Cumple pero nada más.',
+            'puntuacion_comentario_2': '3',
+            'comentario_3': 'Es lo que es, vino de mesa económico.',
+            'puntuacion_comentario_3': '3',
+            'comentario_4': 'Ni bueno ni malo, bastante flojo.',
+            'puntuacion_comentario_4': '3',
+            'comentario_5': 'Para cocinar puede servir.',
+            'puntuacion_comentario_5': '3'
+        },
+        {
+            'nombre': 'Vino Tinto Syrah Gran Reserva 750ml',
+            'precio': '11500',
+            'estrellas': '4.8',
+            'calificaciones': '445',
+            'envio': 'Gratis',
+            'url': 'https://mercadolibre.com.ar/producto-demo',
+            'comentario_1': 'Fantástico vino, el aroma es increíble. Muy recomendable.',
+            'puntuacion_comentario_1': '5',
+            'comentario_2': 'Excelente calidad premium. El precio es justo.',
+            'puntuacion_comentario_2': '5',
+            'comentario_3': 'Impresionante bouquet, muy complejo y aromático.',
+            'puntuacion_comentario_3': '5',
+            'comentario_4': 'Uno de los mejores que he probado. El envío fue rápido.',
+            'puntuacion_comentario_4': '5',
+            'comentario_5': 'Espectacular, vale cada peso.',
+            'puntuacion_comentario_5': '5'
+        }
+    ]
+
+    # Retornar los primeros num_productos
+    return productos_demo[:min(num_productos, len(productos_demo))]
+
+# =====================================
 # SISTEMA EXPERTO SIMPLIFICADO
 # =====================================
 
@@ -959,66 +1098,91 @@ def main():
     st.sidebar.markdown("### 🔌 Método de Extracción")
     method = st.sidebar.radio(
         "Selecciona cómo obtener los datos:",
-        ("✅ API Oficial (Recomendado)", "🕷️ Web Scraping (Experimental)"),
-        help="API Oficial: Más confiable y rápido. Scraping: Puede fallar en Streamlit Cloud."
+        ("🎯 Modo Demo (Recomendado)", "✅ API Oficial", "🕷️ Web Scraping"),
+        help="Demo: Usa datos de ejemplo para demostrar las funcionalidades. API/Scraping: Pueden estar bloqueados."
     )
+    use_demo = "Demo" in method
     use_api = "API" in method
 
-    if use_api:
-        st.sidebar.success("✅ Usando API oficial de MercadoLibre - Sin bloqueos")
+    if use_demo:
+        st.sidebar.success("🎯 Usando datos de demostración - Funciona 100%")
+    elif use_api:
+        st.sidebar.warning("⚠️ API puede estar bloqueada por MercadoLibre")
     else:
         st.sidebar.warning("⚠️ Scraping puede fallar en Streamlit Cloud debido a bloqueos de ML")
 
     st.sidebar.markdown("---")
 
     # Parámetros de búsqueda
-    search_term = st.sidebar.text_input("Término de búsqueda", value="vinos", help="Ejemplo: vinos, autos, cascos moto")
+    if not use_demo:
+        search_term = st.sidebar.text_input("Término de búsqueda", value="vinos", help="Ejemplo: vinos, autos, cascos moto")
+    else:
+        search_term = "vinos"  # Fijo para demo
+        st.sidebar.info("💡 En modo demo se muestran datos de ejemplo de vinos")
 
-    if not use_api:
+    if not use_api and not use_demo:
         max_pages = st.sidebar.slider("Número de páginas", 1, 5, 1)
     else:
-        max_pages = 1  # La API maneja límites diferentes
+        max_pages = 1  # La API y demo manejan límites diferentes
 
     get_comments = st.sidebar.checkbox("Obtener comentarios", value=True)
 
     # Modo debugging (solo para scraping)
-    if not use_api:
+    if not use_api and not use_demo:
         st.sidebar.markdown("---")
         debug_mode = st.sidebar.checkbox("🐛 Modo Debug", value=False, help="Muestra información detallada del proceso de scraping para diagnosticar problemas")
     else:
         debug_mode = False
-    
-    if get_comments:
+
+    if get_comments and not use_demo:
         # Calcular el máximo teórico de productos según las páginas seleccionadas
         estimated_max_products = max_pages * 50  # Aproximadamente 50 productos por página
-        
+
         # Mostrar información sobre productos estimados
         st.sidebar.info(f"📊 Productos estimados: ~{estimated_max_products} productos en {max_pages} página(s)")
-        
+
         # Permitir seleccionar hasta el máximo estimado de productos
         max_products_comments = st.sidebar.slider(
-            "Productos para comentarios", 
-            1, 
-            estimated_max_products, 
+            "Productos para comentarios",
+            1,
+            estimated_max_products,
             min(50, estimated_max_products),  # Valor por defecto: mínimo entre 50 y el máximo estimado
             help=f"Puedes seleccionar hasta {estimated_max_products} productos para extraer comentarios"
         )
-        
+
         # Mostrar tiempo estimado
         estimated_time_minutes = max_products_comments * 0.1  # Aproximadamente 6 segundos por producto
         st.sidebar.warning(f"⏱️ Tiempo estimado: ~{estimated_time_minutes:.1f} minutos")
+    elif use_demo:
+        max_products_comments = 7  # Número fijo de productos demo
     else:
         max_products_comments = 0
     
     # Botón de inicio
-    button_label = "🚀 Iniciar Búsqueda" if use_api else "🚀 Iniciar Scraping"
+    if use_demo:
+        button_label = "🎯 Cargar Datos Demo"
+    elif use_api:
+        button_label = "🚀 Iniciar Búsqueda"
+    else:
+        button_label = "🚀 Iniciar Scraping"
+
     if st.sidebar.button(button_label, type="primary"):
         if search_term:
             st.header(f"🔍 Resultados para: {search_term}")
 
             productos = []
 
-            if use_api:
+            if use_demo:
+                # Usar datos de demostración
+                st.info("🎯 Cargando datos de demostración...")
+                with st.spinner("Generando productos de ejemplo..."):
+                    import time
+                    time.sleep(0.5)  # Simular carga
+                    num_productos = min(max_products_comments if get_comments else 7, 7)
+                    productos = generar_datos_demo(num_productos)
+                    st.success(f"✅ Se cargaron {len(productos)} productos de demostración")
+
+            elif use_api:
                 # Usar API oficial
                 st.info("🔌 Conectando con la API oficial de MercadoLibre...")
                 api = MercadoLibreAPI()
