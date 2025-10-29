@@ -209,23 +209,90 @@ class MercadoLibreScraper:
     def get_user_agent(self):
         return random.choice(self.user_agents)
     
-    def fetch_url(self, url):
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        
+    def fetch_url(self, url, debug=False):
+        """
+        Obtiene el contenido HTML de una URL con manejo mejorado de errores
+
+        Args:
+            url (str): URL a obtener
+            debug (bool): Si es True, muestra información de debugging
+
+        Returns:
+            str: Contenido HTML o None si hay error
+        """
         headers = {
             'User-Agent': self.get_user_agent(),
-            'Accept': 'text/html,application/xhtml+xml,application/xml',
-            'Accept-Language': 'es-ES,es;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0',
         }
-        
+
         req = urllib.request.Request(url, headers=headers)
+
+        # Intentar primero con SSL verification deshabilitada
         try:
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+
             with urllib.request.urlopen(req, context=context, timeout=30) as response:
-                return response.read().decode('utf-8')
+                status_code = response.getcode()
+                if debug:
+                    st.info(f"✅ Respuesta HTTP {status_code} de {url}")
+
+                content = response.read()
+
+                # Manejar diferentes encodings
+                try:
+                    return content.decode('utf-8')
+                except UnicodeDecodeError:
+                    return content.decode('latin-1')
+
+        except urllib.error.HTTPError as e:
+            if debug:
+                st.error(f"❌ Error HTTP {e.code}: {e.reason}")
+                st.error(f"URL: {url}")
+
+            # Si es un error 403 (Forbidden), es probable que MercadoLibre esté bloqueando
+            if e.code == 403:
+                st.warning("⚠️ MercadoLibre está bloqueando el acceso. Esto puede deberse a:")
+                st.warning("- Detección de scraping automatizado")
+                st.warning("- Restricciones en Streamlit Cloud")
+                st.warning("- Límites de rate limiting")
+
+            return None
+
+        except urllib.error.URLError as e:
+            if debug:
+                st.error(f"❌ Error de URL: {e.reason}")
+            return None
+
+        except ssl.SSLError as e:
+            # Si falla SSL, intentar con verificación habilitada
+            if debug:
+                st.warning(f"⚠️ Error SSL, reintentando con verificación habilitada...")
+
+            try:
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    content = response.read()
+                    try:
+                        return content.decode('utf-8')
+                    except UnicodeDecodeError:
+                        return content.decode('latin-1')
+            except Exception as e2:
+                if debug:
+                    st.error(f"❌ Error en segundo intento: {e2}")
+                return None
+
         except Exception as e:
-            st.error(f"Error al acceder a {url}: {e}")
+            if debug:
+                st.error(f"❌ Error inesperado: {type(e).__name__}: {e}")
             return None
     
     def extract_json_data(self, html_content):
@@ -422,47 +489,70 @@ class MercadoLibreScraper:
         
         return comments_data
     
-    def scrape_products(self, search_term, max_pages=1, get_comments=False, max_products_comments=10):
+    def scrape_products(self, search_term, max_pages=1, get_comments=False, max_products_comments=10, debug=False):
         all_products = []
-        
+
         # Construir URL base
         if ' ' in search_term:
             formatted_search = search_term.replace(' ', '-')
             base_url = f"https://listado.mercadolibre.com.ar/{formatted_search}?sb=all_mercadolibre#D[A:{urllib.parse.quote(search_term)}]"
         else:
             base_url = f"https://listado.mercadolibre.com.ar/{search_term}#D[A:{search_term}]"
-        
+
+        if debug:
+            st.info(f"🔍 URL generada: {base_url}")
+
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
         # Scraping de páginas
         for page in range(1, max_pages + 1):
             if page == 1:
                 page_url = base_url
             else:
                 page_url = f"{base_url}&page={page}"
-            
+
             status_text.text(f"Extrayendo datos de la página {page}...")
             progress_bar.progress(page / max_pages * 0.7)
-            
-            page_html = self.fetch_url(page_url)
+
+            if debug:
+                st.info(f"📡 Intentando acceder a: {page_url[:80]}...")
+
+            page_html = self.fetch_url(page_url, debug=debug)
+
             if page_html:
+                if debug:
+                    st.success(f"✅ Se obtuvo HTML (tamaño: {len(page_html)} caracteres)")
+
                 # Intentar extraer datos
                 json_data = self.extract_json_data(page_html)
                 page_products = []
-                
+
                 if json_data:
+                    if debug:
+                        st.info(f"📊 Se encontró JSON LD estructurado")
                     page_products = self.process_product_data(json_data)
-                
+                else:
+                    if debug:
+                        st.warning("⚠️ No se encontró JSON LD, usando extracción tradicional")
+
                 if not page_products:
                     page_products = self.extract_traditional_way(page_html)
-                
+                    if debug and page_products:
+                        st.info(f"📦 Extracción tradicional encontró {len(page_products)} productos")
+
                 if page_products:
                     all_products.extend(page_products)
-                    st.success(f"Se encontraron {len(page_products)} productos en la página {page}")
+                    st.success(f"✅ Se encontraron {len(page_products)} productos en la página {page}")
                 else:
-                    st.warning(f"No se pudieron extraer productos de la página {page}")
-            
+                    st.warning(f"⚠️ No se pudieron extraer productos de la página {page}")
+                    if debug:
+                        # Mostrar una muestra del HTML para debugging
+                        with st.expander("🔍 Ver muestra del HTML recibido"):
+                            st.code(page_html[:2000] + "\n\n...(truncado)")
+            else:
+                st.error(f"❌ No se pudo obtener el HTML de la página {page}")
+
             if page < max_pages:
                 time.sleep(random.uniform(2.0, 3.0))
         
@@ -772,6 +862,10 @@ def main():
     search_term = st.sidebar.text_input("Término de búsqueda", value="vinos", help="Ejemplo: vinos, autos, cascos moto")
     max_pages = st.sidebar.slider("Número de páginas", 1, 5, 1)
     get_comments = st.sidebar.checkbox("Obtener comentarios", value=True)
+
+    # Modo debugging
+    st.sidebar.markdown("---")
+    debug_mode = st.sidebar.checkbox("🐛 Modo Debug", value=False, help="Muestra información detallada del proceso de scraping para diagnosticar problemas")
     
     if get_comments:
         # Calcular el máximo teórico de productos según las páginas seleccionadas
@@ -809,7 +903,8 @@ def main():
                     search_term=search_term,
                     max_pages=max_pages,
                     get_comments=get_comments,
-                    max_products_comments=max_products_comments
+                    max_products_comments=max_products_comments,
+                    debug=debug_mode
                 )
             
             if productos:
