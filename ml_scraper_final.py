@@ -23,6 +23,103 @@ st.set_page_config(
 )
 
 # =====================================
+# API DE MERCADOLIBRE (ALTERNATIVA)
+# =====================================
+
+class MercadoLibreAPI:
+    """Clase para acceder a la API oficial de MercadoLibre"""
+
+    def __init__(self):
+        self.base_url = "https://api.mercadolibre.com"
+        self.site_id = "MLA"  # Argentina
+
+    def search_products(self, query, limit=50):
+        """
+        Busca productos usando la API oficial
+
+        Args:
+            query (str): Término de búsqueda
+            limit (int): Número máximo de resultados
+
+        Returns:
+            list: Lista de productos encontrados
+        """
+        try:
+            encoded_query = urllib.parse.quote(query)
+            url = f"{self.base_url}/sites/{self.site_id}/search?q={encoded_query}&limit={limit}"
+
+            req = urllib.request.Request(url)
+            req.add_header('Accept', 'application/json')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+                products = []
+                for item in data.get('results', []):
+                    product = {
+                        'nombre': item.get('title', 'Sin título'),
+                        'precio': str(item.get('price', 0)),
+                        'estrellas': '0',
+                        'calificaciones': '0',
+                        'descuento': 'Sin descuento',
+                        'envio': 'Gratis' if item.get('shipping', {}).get('free_shipping') else 'Con costo',
+                        'url': item.get('permalink', ''),
+                        'id': item.get('id', '')
+                    }
+
+                    # Intentar obtener reviews
+                    if item.get('reviews'):
+                        reviews_data = item['reviews']
+                        product['estrellas'] = str(reviews_data.get('rating_average', 0))
+                        product['calificaciones'] = str(reviews_data.get('total', 0))
+
+                    products.append(product)
+
+                return products
+
+        except urllib.error.HTTPError as e:
+            st.error(f"❌ Error HTTP {e.code}: {e.reason}")
+            return []
+        except Exception as e:
+            st.error(f"❌ Error al acceder a la API: {type(e).__name__}: {e}")
+            return []
+
+    def get_product_reviews(self, product_id, max_reviews=5):
+        """
+        Obtiene reviews de un producto específico
+
+        Args:
+            product_id (str): ID del producto
+            max_reviews (int): Número máximo de reviews
+
+        Returns:
+            list: Lista de comentarios
+        """
+        try:
+            url = f"{self.base_url}/reviews/item/{product_id}"
+
+            req = urllib.request.Request(url)
+            req.add_header('Accept', 'application/json')
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode('utf-8'))
+
+                reviews = []
+                for review in data.get('reviews', [])[:max_reviews]:
+                    reviews.append({
+                        'comentario': review.get('content', ''),
+                        'puntuacion': str(review.get('rate', 3))
+                    })
+
+                return reviews
+
+        except urllib.error.HTTPError as e:
+            # Muchos productos no tienen reviews, esto es normal
+            return []
+        except Exception as e:
+            return []
+
+# =====================================
 # SISTEMA EXPERTO SIMPLIFICADO
 # =====================================
 
@@ -209,23 +306,90 @@ class MercadoLibreScraper:
     def get_user_agent(self):
         return random.choice(self.user_agents)
     
-    def fetch_url(self, url):
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        
+    def fetch_url(self, url, debug=False):
+        """
+        Obtiene el contenido HTML de una URL con manejo mejorado de errores
+
+        Args:
+            url (str): URL a obtener
+            debug (bool): Si es True, muestra información de debugging
+
+        Returns:
+            str: Contenido HTML o None si hay error
+        """
         headers = {
             'User-Agent': self.get_user_agent(),
-            'Accept': 'text/html,application/xhtml+xml,application/xml',
-            'Accept-Language': 'es-ES,es;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Cache-Control': 'max-age=0',
         }
-        
+
         req = urllib.request.Request(url, headers=headers)
+
+        # Intentar primero con SSL verification deshabilitada
         try:
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+
             with urllib.request.urlopen(req, context=context, timeout=30) as response:
-                return response.read().decode('utf-8')
+                status_code = response.getcode()
+                if debug:
+                    st.info(f"✅ Respuesta HTTP {status_code} de {url}")
+
+                content = response.read()
+
+                # Manejar diferentes encodings
+                try:
+                    return content.decode('utf-8')
+                except UnicodeDecodeError:
+                    return content.decode('latin-1')
+
+        except urllib.error.HTTPError as e:
+            if debug:
+                st.error(f"❌ Error HTTP {e.code}: {e.reason}")
+                st.error(f"URL: {url}")
+
+            # Si es un error 403 (Forbidden), es probable que MercadoLibre esté bloqueando
+            if e.code == 403:
+                st.warning("⚠️ MercadoLibre está bloqueando el acceso. Esto puede deberse a:")
+                st.warning("- Detección de scraping automatizado")
+                st.warning("- Restricciones en Streamlit Cloud")
+                st.warning("- Límites de rate limiting")
+
+            return None
+
+        except urllib.error.URLError as e:
+            if debug:
+                st.error(f"❌ Error de URL: {e.reason}")
+            return None
+
+        except ssl.SSLError as e:
+            # Si falla SSL, intentar con verificación habilitada
+            if debug:
+                st.warning(f"⚠️ Error SSL, reintentando con verificación habilitada...")
+
+            try:
+                with urllib.request.urlopen(req, timeout=30) as response:
+                    content = response.read()
+                    try:
+                        return content.decode('utf-8')
+                    except UnicodeDecodeError:
+                        return content.decode('latin-1')
+            except Exception as e2:
+                if debug:
+                    st.error(f"❌ Error en segundo intento: {e2}")
+                return None
+
         except Exception as e:
-            st.error(f"Error al acceder a {url}: {e}")
+            if debug:
+                st.error(f"❌ Error inesperado: {type(e).__name__}: {e}")
             return None
     
     def extract_json_data(self, html_content):
@@ -422,47 +586,70 @@ class MercadoLibreScraper:
         
         return comments_data
     
-    def scrape_products(self, search_term, max_pages=1, get_comments=False, max_products_comments=10):
+    def scrape_products(self, search_term, max_pages=1, get_comments=False, max_products_comments=10, debug=False):
         all_products = []
-        
+
         # Construir URL base
         if ' ' in search_term:
             formatted_search = search_term.replace(' ', '-')
             base_url = f"https://listado.mercadolibre.com.ar/{formatted_search}?sb=all_mercadolibre#D[A:{urllib.parse.quote(search_term)}]"
         else:
             base_url = f"https://listado.mercadolibre.com.ar/{search_term}#D[A:{search_term}]"
-        
+
+        if debug:
+            st.info(f"🔍 URL generada: {base_url}")
+
         progress_bar = st.progress(0)
         status_text = st.empty()
-        
+
         # Scraping de páginas
         for page in range(1, max_pages + 1):
             if page == 1:
                 page_url = base_url
             else:
                 page_url = f"{base_url}&page={page}"
-            
+
             status_text.text(f"Extrayendo datos de la página {page}...")
             progress_bar.progress(page / max_pages * 0.7)
-            
-            page_html = self.fetch_url(page_url)
+
+            if debug:
+                st.info(f"📡 Intentando acceder a: {page_url[:80]}...")
+
+            page_html = self.fetch_url(page_url, debug=debug)
+
             if page_html:
+                if debug:
+                    st.success(f"✅ Se obtuvo HTML (tamaño: {len(page_html)} caracteres)")
+
                 # Intentar extraer datos
                 json_data = self.extract_json_data(page_html)
                 page_products = []
-                
+
                 if json_data:
+                    if debug:
+                        st.info(f"📊 Se encontró JSON LD estructurado")
                     page_products = self.process_product_data(json_data)
-                
+                else:
+                    if debug:
+                        st.warning("⚠️ No se encontró JSON LD, usando extracción tradicional")
+
                 if not page_products:
                     page_products = self.extract_traditional_way(page_html)
-                
+                    if debug and page_products:
+                        st.info(f"📦 Extracción tradicional encontró {len(page_products)} productos")
+
                 if page_products:
                     all_products.extend(page_products)
-                    st.success(f"Se encontraron {len(page_products)} productos en la página {page}")
+                    st.success(f"✅ Se encontraron {len(page_products)} productos en la página {page}")
                 else:
-                    st.warning(f"No se pudieron extraer productos de la página {page}")
-            
+                    st.warning(f"⚠️ No se pudieron extraer productos de la página {page}")
+                    if debug:
+                        # Mostrar una muestra del HTML para debugging
+                        with st.expander("🔍 Ver muestra del HTML recibido"):
+                            st.code(page_html[:2000] + "\n\n...(truncado)")
+            else:
+                st.error(f"❌ No se pudo obtener el HTML de la página {page}")
+
             if page < max_pages:
                 time.sleep(random.uniform(2.0, 3.0))
         
@@ -767,11 +954,39 @@ def main():
     
     # Sidebar para configuración
     st.sidebar.header("⚙️ Configuración")
-    
-    # Parámetros de scraping
+
+    # NUEVO: Selector de método
+    st.sidebar.markdown("### 🔌 Método de Extracción")
+    method = st.sidebar.radio(
+        "Selecciona cómo obtener los datos:",
+        ("✅ API Oficial (Recomendado)", "🕷️ Web Scraping (Experimental)"),
+        help="API Oficial: Más confiable y rápido. Scraping: Puede fallar en Streamlit Cloud."
+    )
+    use_api = "API" in method
+
+    if use_api:
+        st.sidebar.success("✅ Usando API oficial de MercadoLibre - Sin bloqueos")
+    else:
+        st.sidebar.warning("⚠️ Scraping puede fallar en Streamlit Cloud debido a bloqueos de ML")
+
+    st.sidebar.markdown("---")
+
+    # Parámetros de búsqueda
     search_term = st.sidebar.text_input("Término de búsqueda", value="vinos", help="Ejemplo: vinos, autos, cascos moto")
-    max_pages = st.sidebar.slider("Número de páginas", 1, 5, 1)
+
+    if not use_api:
+        max_pages = st.sidebar.slider("Número de páginas", 1, 5, 1)
+    else:
+        max_pages = 1  # La API maneja límites diferentes
+
     get_comments = st.sidebar.checkbox("Obtener comentarios", value=True)
+
+    # Modo debugging (solo para scraping)
+    if not use_api:
+        st.sidebar.markdown("---")
+        debug_mode = st.sidebar.checkbox("🐛 Modo Debug", value=False, help="Muestra información detallada del proceso de scraping para diagnosticar problemas")
+    else:
+        debug_mode = False
     
     if get_comments:
         # Calcular el máximo teórico de productos según las páginas seleccionadas
@@ -795,22 +1010,58 @@ def main():
     else:
         max_products_comments = 0
     
-    # Botón de scraping
-    if st.sidebar.button("🚀 Iniciar Scraping", type="primary"):
+    # Botón de inicio
+    button_label = "🚀 Iniciar Búsqueda" if use_api else "🚀 Iniciar Scraping"
+    if st.sidebar.button(button_label, type="primary"):
         if search_term:
             st.header(f"🔍 Resultados para: {search_term}")
-            
-            # Inicializar scraper
-            scraper = MercadoLibreScraper()
-            
-            # Realizar scraping
-            with st.spinner("Realizando scraping..."):
-                productos = scraper.scrape_products(
-                    search_term=search_term,
-                    max_pages=max_pages,
-                    get_comments=get_comments,
-                    max_products_comments=max_products_comments
-                )
+
+            productos = []
+
+            if use_api:
+                # Usar API oficial
+                st.info("🔌 Conectando con la API oficial de MercadoLibre...")
+                api = MercadoLibreAPI()
+
+                with st.spinner("Obteniendo productos desde la API..."):
+                    limit = min(max_products_comments if get_comments else 50, 50)
+                    productos = api.search_products(search_term, limit=limit)
+
+                    if productos and get_comments:
+                        st.info(f"📝 Obteniendo comentarios de {len(productos)} productos...")
+                        progress_bar = st.progress(0)
+
+                        for idx, producto in enumerate(productos):
+                            if 'id' in producto and producto['id']:
+                                reviews = api.get_product_reviews(producto['id'], max_reviews=5)
+
+                                # Agregar comentarios al producto
+                                for i, review in enumerate(reviews):
+                                    producto[f'comentario_{i+1}'] = review['comentario']
+                                    producto[f'puntuacion_comentario_{i+1}'] = review['puntuacion']
+
+                                # Rellenar comentarios faltantes
+                                for i in range(len(reviews), 5):
+                                    producto[f'comentario_{i+1}'] = ""
+                                    producto[f'puntuacion_comentario_{i+1}'] = ""
+
+                            progress_bar.progress((idx + 1) / len(productos))
+                            time.sleep(0.1)  # Pequeña pausa para no saturar la API
+
+                        progress_bar.empty()
+
+            else:
+                # Usar scraping tradicional
+                scraper = MercadoLibreScraper()
+
+                with st.spinner("Realizando scraping..."):
+                    productos = scraper.scrape_products(
+                        search_term=search_term,
+                        max_pages=max_pages,
+                        get_comments=get_comments,
+                        max_products_comments=max_products_comments,
+                        debug=debug_mode
+                    )
             
             if productos:
                 st.success(f"✅ Se encontraron {len(productos)} productos")
