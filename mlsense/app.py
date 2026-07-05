@@ -11,7 +11,7 @@ from typing import List, Dict, Any
 from .sentiment import AnalizadorSentimiento
 from .expert import ProductExpert
 from .parsers import parse_mercadolibre_html
-from .fetcher import fetch_product_url
+from .fetcher import fetch_product_url, search_live
 from .demo_data import generate_demo_data
 
 
@@ -418,7 +418,7 @@ def sidebar_entrada_datos() -> tuple:
 
     modo = st.sidebar.radio(
         "Elige modo de entrada",
-        options=["Demo", "HTML subido", "URL de producto"]
+        options=["Demo", "HTML subido", "URL de producto", "🔎 Búsqueda en vivo (beta)"]
     )
 
     productos = []
@@ -463,6 +463,46 @@ def sidebar_entrada_datos() -> tuple:
                     st.sidebar.info(warning)
             else:
                 st.sidebar.error(f"❌ {mensaje}")
+
+    elif modo == "🔎 Búsqueda en vivo (beta)":
+        termino = st.sidebar.text_input("Ej: celular samsung a56", key="search_input")
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            cantidad = st.number_input("Productos", 5, 30, 15)
+        with col2:
+            con_comentarios = st.checkbox("Con comentarios", value=True)
+
+        if st.sidebar.button("🔍 Buscar"):
+            if not termino.strip():
+                st.sidebar.error("Ingresá un término de búsqueda")
+            else:
+                with st.spinner("Buscando en MercadoLibre..."):
+                    prods, warnings = _busqueda_live_cached(termino, cantidad, con_comentarios)
+
+                    if warnings:
+                        for warning in warnings:
+                            st.sidebar.warning(warning)
+
+                    if prods:
+                        st.session_state.productos = prods
+                        productos = prods
+                    else:
+                        st.sidebar.error("No se encontraron productos")
+
+
+@st.cache_data(ttl=900)
+def _busqueda_live_cached(termino: str, max_productos: int, con_comentarios: bool):
+    """Cached live search wrapper.
+
+    Args:
+        termino: Search term
+        max_productos: Max products
+        con_comentarios: Include comments
+
+    Returns:
+        Tuple of (products, warnings)
+    """
+    return search_live(termino, max_productos, con_comentarios)
 
     if 'productos' in st.session_state:
         productos = st.session_state.productos

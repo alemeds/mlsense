@@ -7,6 +7,7 @@ from pathlib import Path
 from mlsense.sentiment import AnalizadorSentimiento
 from mlsense.expert import ProductExpert
 from mlsense.parsers import parse_mercadolibre_html, _normalizar_precio
+from mlsense.fetcher import build_search_url
 
 
 class TestAnalizadorSentimiento:
@@ -283,6 +284,45 @@ class TestIntegracion:
 
         assert score > 0.5
         assert resultado['recomendacion'] == 'COMPRAR'
+
+
+class TestBuildSearchUrl:
+    """Tests for search URL builder."""
+
+    def test_build_search_url_simple(self):
+        """Test simple search term."""
+        url = build_search_url("celular")
+        assert url == "https://listado.mercadolibre.com.ar/celular"
+
+    def test_build_search_url_con_espacios(self):
+        """Test search term with spaces."""
+        url = build_search_url("celular samsung a56")
+        assert url == "https://listado.mercadolibre.com.ar/celular-samsung-a56"
+
+    def test_build_search_url_mayusculas(self):
+        """Test uppercase conversion."""
+        url = build_search_url("CELULAR SAMSUNG")
+        assert url == "https://listado.mercadolibre.com.ar/celular-samsung"
+
+    def test_build_search_url_con_tildes(self):
+        """Test diacritic removal."""
+        url = build_search_url("Televisión Samsung")
+        assert url == "https://listado.mercadolibre.com.ar/television-samsung"
+
+    def test_build_search_url_con_simbolos(self):
+        """Test special character removal."""
+        url = build_search_url("iPhone 15 Pro Max")
+        assert "iphone-15-pro-max" in url
+
+    def test_build_search_url_espacios_multiples(self):
+        """Test multiple spaces collapse."""
+        url = build_search_url("celular   samsung    a56")
+        assert url == "https://listado.mercadolibre.com.ar/celular-samsung-a56"
+
+    def test_build_search_url_espacios_al_inicio_fin(self):
+        """Test trimming spaces."""
+        url = build_search_url("   celular samsung   ")
+        assert url == "https://listado.mercadolibre.com.ar/celular-samsung"
 
 
 if __name__ == '__main__':

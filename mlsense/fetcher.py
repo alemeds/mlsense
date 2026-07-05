@@ -2,12 +2,25 @@
 
 import urllib.request
 import urllib.error
+import urllib.parse
 import ssl
 import logging
-from typing import Tuple, Optional, Dict, Any
+import time
+import random
+import unicodedata
+import re
+from typing import Tuple, Optional, Dict, Any, List
 
 
 logger = logging.getLogger(__name__)
+
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
+]
 
 
 def fetch_product_url(url: str, timeout: int = 15) -> Tuple[bool, Optional[Dict[str, Any]], str]:
@@ -83,3 +96,114 @@ def _fetch_sin_verificacion(url: str, headers: Dict, timeout: int) -> Tuple[bool
 
     except Exception as e:
         return False, None, f"Failed even without verification: {type(e).__name__}"
+
+
+def build_search_url(termino: str) -> str:
+    """Build MercadoLibre search URL from search term.
+
+    Normalizes term: lowercase, removes diacritics, replaces spaces with hyphens.
+
+    Args:
+        termino: Search term (e.g. "Celular Samsung A56")
+
+    Returns:
+        Full search URL
+    """
+    termino = termino.strip()
+    termino = termino.lower()
+    termino = unicodedata.normalize('NFD', termino)
+    termino = ''.join(c for c in termino if unicodedata.category(c) != 'Mn')
+    termino = re.sub(r'[^a-z0-9\s]', '', termino)
+    termino = re.sub(r'\s+', '-', termino).strip('-')
+
+    return f"https://listado.mercadolibre.com.ar/{termino}"
+
+
+def search_live(termino: str, max_productos: int = 15, con_comentarios: bool = True,
+                max_paginas: int = 1) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Search MercadoLibre live and fetch product details.
+
+    Fetches search results page, extracts products, and optionally fetches
+    individual product pages for reviews. Includes random delays and User-Agent rotation.
+
+    Args:
+        termino: Search term
+        max_productos: Maximum products to fetch (5-30)
+        con_comentarios: Whether to fetch product reviews (slower)
+        max_paginas: Maximum search result pages to process
+
+    Returns:
+        Tuple of (products_list, warnings_list)
+    """
+    from .parsers import parse_mercadolibre_html
+
+    max_productos = max(5, min(30, max_productos))
+    warnings = []
+    productos = []
+
+    search_url = build_search_url(termino)
+
+    headers = {
+        'User-Agent': random.choice(USER_AGENTS),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.9',
+    }
+
+    try:
+        req = urllib.request.Request(search_url, headers=headers)
+        context = ssl.create_default_context()
+
+        with urllib.request.urlopen(req, timeout=15, context=context) as response:
+            search_html = response.read().decode('utf-8', errors='replace')
+
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            return [], ["🚫 MercadoLibre bloqueó la IP del servidor (habitual en Streamlit Cloud). "
+                       "Ejecutá la app localmente o usá el modo HTML subido."]
+        elif e.code == 429:
+            return [], ["⏱️ Rate limit. Esperá unos minutos e intentá de nuevo."]
+        else:
+            return [], [f"❌ Error HTTP {e.code} en búsqueda"]
+
+    except Exception as e:
+        return [], [f"❌ Error al buscar: {type(e).__name__}"]
+
+    prods_buscados, parse_warnings = parse_mercadolibre_html(search_html)
+    warnings.extend(parse_warnings)
+
+    if not prods_buscados:
+        return [], warnings + ["No se encontraron productos en la búsqueda."]
+
+    productos = prods_buscados[:max_productos]
+
+    if con_comentarios and productos:
+        productos_con_reviews = []
+
+        for i, producto in enumerate(productos):
+            url = producto.get('url', '')
+
+            if not url:
+                productos_con_reviews.append(producto)
+                continue
+
+            time.sleep(random.uniform(1.5, 3.5))
+
+            success, html, msg = fetch_product_url(url, timeout=15)
+
+            if success and html:
+                prods_detail, _ = parse_mercadolibre_html(html)
+                if prods_detail:
+                    producto_detail = prods_detail[0]
+                    producto['comentarios'] = producto_detail.get('comentarios', [])
+
+            elif msg and "bloqueó" in msg.lower():
+                warnings.append(f"⚠️ Bloqueo a mitad de fetches de comentarios. "
+                               f"Se obtuvieron {len(productos_con_reviews)}/{max_productos} con reviews.")
+                productos_con_reviews.extend(productos[i:])
+                break
+
+            productos_con_reviews.append(producto)
+
+        productos = productos_con_reviews
+
+    return productos, warnings
