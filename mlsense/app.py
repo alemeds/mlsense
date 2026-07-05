@@ -489,6 +489,11 @@ def sidebar_entrada_datos() -> tuple:
                     else:
                         st.sidebar.error("No se encontraron productos")
 
+    if 'productos' in st.session_state:
+        productos = st.session_state.productos
+
+    return modo, productos, categoria_config
+
 
 @st.cache_data(ttl=900)
 def _busqueda_live_cached(termino: str, max_productos: int, con_comentarios: bool):
@@ -503,11 +508,6 @@ def _busqueda_live_cached(termino: str, max_productos: int, con_comentarios: boo
         Tuple of (products, warnings)
     """
     return search_live(termino, max_productos, con_comentarios)
-
-    if 'productos' in st.session_state:
-        productos = st.session_state.productos
-
-    return modo, productos, categoria_config
 
 
 def main():
