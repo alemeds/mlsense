@@ -10,6 +10,7 @@ import random
 import unicodedata
 import re
 from typing import Tuple, Optional, Dict, Any, List
+from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -207,3 +208,78 @@ def search_live(termino: str, max_productos: int = 15, con_comentarios: bool = T
         productos = productos_con_reviews
 
     return productos, warnings
+
+
+def search_with_playwright(termino: str) -> Tuple[str, Optional[str], List[str]]:
+    """Search MercadoLibre with Playwright and return HTML of current page.
+
+    Args:
+        termino: Search term
+
+    Returns:
+        Tuple of (search_url, html_content or None, screenshots_paths, warnings)
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return build_search_url(termino), None, [], ["❌ Playwright no instalado. Ejecuta: pip install playwright"]
+
+    search_url = build_search_url(termino)
+    screenshots = []
+    warnings = []
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent=random.choice(USER_AGENTS),
+                viewport={"width": 1280, "height": 720}
+            )
+            page = context.new_page()
+
+            page.goto(search_url, wait_until="load", timeout=30000)
+            time.sleep(2)
+
+            html = page.content()
+
+            context.close()
+            browser.close()
+
+            return search_url, html, screenshots, warnings
+
+    except Exception as e:
+        return search_url, None, screenshots, [f"❌ Error con Playwright: {str(e)[:100]}"]
+
+
+def extract_html_from_page(url: str) -> Tuple[Optional[str], List[str]]:
+    """Extract HTML from a MercadoLibre product page using Playwright.
+
+    Args:
+        url: Product URL
+
+    Returns:
+        Tuple of (html_content or None, warnings)
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        return None, ["❌ Playwright no instalado"]
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(user_agent=random.choice(USER_AGENTS))
+            page = context.new_page()
+
+            page.goto(url, wait_until="load", timeout=30000)
+            time.sleep(2)
+
+            html = page.content()
+
+            context.close()
+            browser.close()
+
+            return html, []
+
+    except Exception as e:
+        return None, [f"❌ Error extrayendo página: {str(e)[:100]}"]

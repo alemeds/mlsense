@@ -11,7 +11,7 @@ from typing import List, Dict, Any
 from .sentiment import AnalizadorSentimiento
 from .expert import ProductExpert
 from .parsers import parse_mercadolibre_html
-from .fetcher import fetch_product_url, search_live
+from .fetcher import fetch_product_url, search_live, extract_html_from_page
 from .demo_data import generate_demo_data
 
 
@@ -418,7 +418,7 @@ def sidebar_entrada_datos() -> tuple:
 
     modo = st.sidebar.radio(
         "Elige modo de entrada",
-        options=["Demo", "HTML subido", "URL de producto", "🔎 Búsqueda en vivo (beta)"]
+        options=["Demo", "HTML subido", "URL de producto", "🌐 Navegación Interactiva", "🔎 Búsqueda en vivo (beta)"]
     )
 
     productos = []
@@ -464,6 +464,38 @@ def sidebar_entrada_datos() -> tuple:
             else:
                 st.sidebar.error(f"❌ {mensaje}")
 
+    elif modo == "🌐 Navegación Interactiva":
+        st.sidebar.markdown("**Con Playwright + Capuras**")
+        termino = st.sidebar.text_input("Término a buscar", placeholder="ej: chaleco termico")
+
+        if st.sidebar.button("🌐 Buscar en MercadoLibre"):
+            if not termino.strip():
+                st.sidebar.error("Ingresá un término")
+            else:
+                with st.spinner("🌐 Abriendo navegador y buscando..."):
+                    url, html, screenshots, warnings = _busqueda_playwright(termino)
+
+                    if warnings:
+                        for w in warnings:
+                            st.sidebar.warning(w)
+
+                    if html:
+                        prods, parse_warnings = parse_mercadolibre_html(html)
+
+                        if parse_warnings:
+                            with st.sidebar.expander("⚠️ Parsing"):
+                                for w in parse_warnings:
+                                    st.caption(w)
+
+                        if prods:
+                            st.session_state.playwright_productos = prods
+                            st.session_state.playwright_url = url
+                            st.success(f"✓ {len(prods)} productos encontrados")
+
+        if 'playwright_productos' in st.session_state:
+            productos = st.session_state.playwright_productos
+            st.sidebar.success("✓ Productos listos para analizar")
+
     elif modo == "🔎 Búsqueda en vivo (beta)":
         termino = st.sidebar.text_input("Ej: celular samsung a56", key="search_input")
         col1, col2 = st.sidebar.columns(2)
@@ -493,6 +525,20 @@ def sidebar_entrada_datos() -> tuple:
         productos = st.session_state.productos
 
     return modo, productos, categoria_config
+
+
+@st.cache_data(ttl=900)
+def _busqueda_playwright(termino: str):
+    """Cached Playwright search wrapper.
+
+    Args:
+        termino: Search term
+
+    Returns:
+        Tuple of (url, html, screenshots, warnings)
+    """
+    from .fetcher import search_with_playwright
+    return search_with_playwright(termino)
 
 
 @st.cache_data(ttl=900)
